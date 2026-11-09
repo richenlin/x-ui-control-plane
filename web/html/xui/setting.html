@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+{{template "head" .}}
+<body class="console-body">
+<div id="app" v-cloak>
+    {{ template "commonSider" . }}
+
+    <main id="content-layout" class="content">
+        <header class="page-head">
+            <div>
+                <p class="eyebrow">Settings / 03</p>
+                <h1>面板设置</h1>
+                <p class="page-sub">监听地址、账户凭据、内核模板与通知服务</p>
+            </div>
+            <div class="head-meta">
+                <span class="chip" :class="saveBtnDisable ? 'chip--ok' : 'chip--warn'">
+                    <span class="dot"></span>[[ saveBtnDisable ? 'SYNCED' : 'UNSAVED' ]]
+                </span>
+            </div>
+        </header>
+
+        <div class="savebar">
+            <span class="savebar-state" :class="{'is-dirty': !saveBtnDisable}">
+                <span class="dot" :class="saveBtnDisable ? 'dot-on' : 'dot-off'"></span>
+                [[ saveBtnDisable ? '所有更改已保存' : '有未保存的更改' ]]
+            </span>
+            <div class="savebar-actions">
+                <span class="count-note" style="margin-right: 6px;">部分项目需重启面板生效</span>
+                <a-button type="danger" ghost :disabled="!saveBtnDisable" @click="restartPanel">重启面板</a-button>
+                <a-button type="primary" :disabled="saveBtnDisable" @click="updateAllSetting">保存配置</a-button>
+            </div>
+        </div>
+
+        <a-spin :spinning="spinning" :delay="300">
+            <nav class="tabs" role="tablist" aria-label="设置分组">
+                <button type="button" role="tab" :class="{'is-active': activeTab === 'panel'}"
+                        @click="activeTab = 'panel'">面板配置</button>
+                <button type="button" role="tab" :class="{'is-active': activeTab === 'user'}"
+                        @click="activeTab = 'user'">用户设置</button>
+                <button type="button" role="tab" :class="{'is-active': activeTab === 'xray'}"
+                        @click="activeTab = 'xray'">Xray 内核</button>
+                <button type="button" role="tab" :class="{'is-active': activeTab === 'tg'}"
+                        @click="activeTab = 'tg'">Telegram 通知</button>
+                <button type="button" role="tab" :class="{'is-active': activeTab === 'keys'}"
+                        @click="activeTab = 'keys'">协议密钥</button>
+                <button type="button" role="tab" :class="{'is-active': activeTab === 'other'}"
+                        @click="activeTab = 'other'">其他</button>
+            </nav>
+
+            <section class="settings-card" v-show="activeTab === 'panel'">
+                <div class="tab-intro">
+                    <div>
+                        <h3>面板访问</h3>
+                        <p>面板自身监听地址与 TLS 证书。修改后需要重启面板生效。</p>
+                    </div>
+                    <span class="count-note">5 ITEMS</span>
+                </div>
+                <setting-list-item type="text" title="面板监听 IP" desc="留空监听所有 IP，重启面板生效"
+                                   v-model="allSetting.webListen"></setting-list-item>
+                <setting-list-item type="number" title="面板监听端口" desc="重启面板生效"
+                                   v-model.number="allSetting.webPort"></setting-list-item>
+                <setting-list-item type="text" title="面板证书公钥文件路径" desc="填写一个 / 开头的绝对路径，重启面板生效"
+                                   v-model="allSetting.webCertFile"></setting-list-item>
+                <setting-list-item type="text" title="面板证书密钥文件路径" desc="填写一个 / 开头的绝对路径，重启面板生效"
+                                   v-model="allSetting.webKeyFile"></setting-list-item>
+                <setting-list-item type="text" title="面板 URL 根路径" desc="必须以 / 开头、以 / 结尾，重启面板生效"
+                                   v-model="allSetting.webBasePath"></setting-list-item>
+            </section>
+
+            <section class="settings-card" v-show="activeTab === 'user'">
+                <div class="tab-intro">
+                    <div>
+                        <h3>管理员凭据</h3>
+                        <p>修改后立即生效，需要输入当前用户名与密码进行校验。</p>
+                    </div>
+                    <span class="count-note">ACCOUNT</span>
+                </div>
+                <div class="u-form">
+                    <a-form layout="vertical" class="form-grid">
+                        <a-form-item label="原用户名">
+                            <a-input v-model="user.oldUsername" autocomplete="off"></a-input>
+                        </a-form-item>
+                        <a-form-item label="原密码">
+                            <a-input type="password" v-model="user.oldPassword" autocomplete="off"></a-input>
+                        </a-form-item>
+                        <a-form-item label="新用户名">
+                            <a-input v-model="user.newUsername" autocomplete="off"></a-input>
+                        </a-form-item>
+                        <a-form-item label="新密码">
+                            <a-input type="password" v-model="user.newPassword" autocomplete="new-password"></a-input>
+                        </a-form-item>
+                        <div class="form-wide form-actions">
+                            <a-button type="primary" @click="updateUser">修改账户</a-button>
+                            <span class="form-note">修改将覆盖当前登录凭据</span>
+                        </div>
+                    </a-form>
+                </div>
+            </section>
+
+            <section class="settings-card" v-show="activeTab === 'xray'">
+                <div class="tab-intro">
+                    <div>
+                        <h3>Xray 配置模板</h3>
+                        <p>以该模板为基础生成最终的 xray 配置文件。重启面板生效，请保持合法 JSON。</p>
+                    </div>
+                    <span class="count-note">JSON TEMPLATE</span>
+                </div>
+                <setting-list-item type="textarea" title="xray 配置模版" desc="直接编辑完整配置模板"
+                                   v-model="allSetting.xrayTemplateConfig"></setting-list-item>
+            </section>
+
+            <section class="settings-card" v-show="activeTab === 'tg'">
+                <div class="tab-intro">
+                    <div>
+                        <h3>Telegram 通知</h3>
+                        <p>通过机器人推送流量与登录提醒，重启面板生效。</p>
+                    </div>
+                    <span class="count-note">4 ITEMS</span>
+                </div>
+                <setting-list-item type="switch" title="启用电报机器人" desc="重启面板生效"
+                                   v-model="allSetting.tgBotEnable"></setting-list-item>
+                <setting-list-item type="text" title="电报机器人 TOKEN" desc="从 @BotFather 获取，重启面板生效"
+                                   v-model="allSetting.tgBotToken"></setting-list-item>
+                <setting-list-item type="number" title="电报机器人 ChatId" desc="接收通知的会话 ID，重启面板生效"
+                                   v-model.number="allSetting.tgBotChatId"></setting-list-item>
+                <setting-list-item type="text" title="电报机器人通知时间" desc="采用 Crontab 定时格式，重启面板生效"
+                                   v-model="allSetting.tgRunTime"></setting-list-item>
+            </section>
+
+            <section class="settings-card" v-show="activeTab === 'keys'">
+                <div class="tab-intro">
+                    <div>
+                        <h3>VLESS Encryption（后量子）</h3>
+                        <p>REALITY 入站使用 ML-KEM-768 + X25519 混合加密；轮换密钥会重启 Xray，旧客户端链接立即失效。</p>
+                    </div>
+                    <span class="chip" :class="vlessEnc.enabled ? 'chip--ok' : 'chip--off'">
+                        <span class="dot"></span>[[ vlessEnc.enabled ? 'ENABLED' : 'DISABLED' ]]
+                    </span>
+                </div>
+
+                <div class="key-grid">
+                    <div class="key-row">
+                        <span>算法</span>
+                        <b>[[ vlessEnc.algorithm || '—' ]]</b>
+                    </div>
+                    <div class="key-row">
+                        <span>生效入站</span>
+                        <b>[[ vlessEnc.inboundId ? ('#' + vlessEnc.inboundId + ' ' + vlessEnc.remark) : '—' ]]</b>
+                    </div>
+                    <div class="key-row key-row--wide">
+                        <span>服务端 decryption</span>
+                        <code class="key-text">[[ showKey ? vlessEnc.decryption : maskKey(vlessEnc.decryption) ]]</code>
+                        <span class="key-actions">
+                            <a @click="showKey = !showKey">[[ showKey ? '隐藏' : '显示' ]]</a>
+                            <a @click="copyText(vlessEnc.decryption)">复制</a>
+                        </span>
+                    </div>
+                    <div class="key-row key-row--wide">
+                        <span>客户端 encryption</span>
+                        <code class="key-text">[[ maskKey(vlessEnc.encryption) ]]</code>
+                        <span class="count-note" v-if="vlessEnc.encryption">[[ vlessEnc.encryption.length ]] 字符</span>
+                        <span class="key-actions">
+                            <a @click="copyText(vlessEnc.encryption)">复制</a>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="form-actions" style="margin-top: 18px">
+                    <a-button icon="reload" @click="getVlessEnc">刷新</a-button>
+                    <a-button type="primary" :disabled="!vlessEnc.enabled" @click="regenerateVlessEnc">重新生成密钥</a-button>
+                    <a-button type="danger" ghost :disabled="!vlessEnc.enabled" @click="disableVlessEnc">关闭</a-button>
+                    <span class="form-note">轮换后请到「仪表盘 / 入站列表」重新复制客户端链接</span>
+                </div>
+            </section>
+
+            <section class="settings-card" v-show="activeTab === 'keys'">
+                <div class="tab-intro">
+                    <div>
+                        <h3>REALITY 密钥</h3>
+                        <p>为每个 REALITY 入站管理 X25519 密钥对与 shortId；轮换后旧客户端链接立即失效。无需再依赖部署脚本。</p>
+                    </div>
+                    <span class="chip" :class="realityList.length > 0 ? 'chip--ok' : 'chip--off'">
+                        <span class="dot"></span>[[ realityList.length ]] REALITY
+                    </span>
+                </div>
+
+                <div class="reality-list" v-if="realityList.length > 0">
+                    <article class="key-row key-row--wide" v-for="r in realityList" :key="r.id">
+                        <span>#[[ r.id ]] [[ r.remark ]]</span>
+                        <b>:[[ r.port ]] · [[ r.protocol ]]</b>
+                        <em class="count-note">dest [[ r.dest ]] · sni [[ (r.serverNames || []).join(', ') ]]</em>
+                        <code class="key-text" :title="r.publicKey">pbk [[ maskKey(r.publicKey) ]]</code>
+                        <code class="key-text">sid [[ (r.shortIds || []).join(', ') ]]</code>
+                        <span class="key-actions">
+                            <a @click="copyText(r.publicKey)">复制公钥</a>
+                            <a @click="rotateReality(r)">轮换密钥</a>
+                        </span>
+                    </article>
+                </div>
+                <div class="empty-state" v-else>
+                    <a-icon type="key"></a-icon>
+                    <h4>没有使用 REALITY 的入站</h4>
+                    <p>在「入站列表」编辑 VLESS/Trojan 入站并打开 REALITY 后，这里会出现它的密钥。</p>
+                </div>
+
+                <div class="form-actions" style="margin-top: 18px">
+                    <a-button icon="reload" @click="getReality">刷新</a-button>
+                    <a-button type="danger" ghost :disabled="realityList.length === 0" @click="rotateReality(null)">
+                        全部轮换
+                    </a-button>
+                    <span class="form-note">轮换会重启 Xray；完成后请到仪表盘或入站列表重新复制链接</span>
+                </div>
+            </section>
+
+            <section class="settings-card" v-show="activeTab === 'other'">
+                <div class="tab-intro">
+                    <div>
+                        <h3>其他</h3>
+                        <p>定时任务与区域相关配置。</p>
+                    </div>
+                    <span class="count-note">1 ITEM</span>
+                </div>
+                <setting-list-item type="text" title="时区" desc="定时任务按照该时区的时间运行，重启面板生效"
+                                   v-model="allSetting.timeLocation"></setting-list-item>
+            </section>
+        </a-spin>
+
+        <footer class="console-foot">
+            <span>X-UI CONTROL PLANE · PANEL SETTINGS</span>
+            <span>CONFIG APPLIED ON RESTART</span>
+        </footer>
+    </main>
+</div>
+
+{{template "js" .}}
+{{template "component/setting"}}
+<script>
+    const app = new Vue({
+        delimiters: ['[[', ']]'],
+        el: '#app',
+        data: {
+            siderDrawer,
+            spinning: false,
+            activeTab: 'panel',
+            oldAllSetting: new AllSetting(),
+            allSetting: new AllSetting(),
+            saveBtnDisable: true,
+            user: {},
+            vlessEnc: {enabled: false, algorithm: '', decryption: '', encryption: '', inboundId: 0, remark: ''},
+            realityList: [],
+            showKey: false,
+        },
+        methods: {
+            loading(spinning = true) {
+                this.spinning = spinning;
+            },
+            async getAllSetting() {
+                this.loading(true);
+                const msg = await HttpUtil.post("/xui/setting/all");
+                this.loading(false);
+                if (msg.success) {
+                    this.oldAllSetting = new AllSetting(msg.obj);
+                    this.allSetting = new AllSetting(msg.obj);
+                    this.saveBtnDisable = true;
+                }
+            },
+            async updateAllSetting() {
+                this.loading(true);
+                const msg = await HttpUtil.post("/xui/setting/update", this.allSetting);
+                this.loading(false);
+                if (msg.success) {
+                    await this.getAllSetting();
+                }
+            },
+            async updateUser() {
+                this.loading(true);
+                const msg = await HttpUtil.post("/xui/setting/updateUser", this.user);
+                this.loading(false);
+                if (msg.success) {
+                    this.user = {};
+                }
+            },
+            async getVlessEnc() {
+                const msg = await HttpUtil.post('/xui/setting/vlessEnc');
+                if (msg.success && msg.obj != null) {
+                    this.vlessEnc = msg.obj;
+                }
+            },
+            maskKey(key) {
+                if (!key) {
+                    return '';
+                }
+                if (key.length <= 40) {
+                    return key;
+                }
+                return key.slice(0, 28) + ' … ' + key.slice(-10);
+            },
+            async regenerateVlessEnc() {
+                this.$confirm({
+                    title: '重新生成密钥',
+                    content: '轮换后所有客户端链接立即失效，需重新导入。继续？',
+                    okText: '继续',
+                    cancelText: '取消',
+                    onOk: async () => {
+                        this.loading(true);
+                        const msg = await HttpUtil.post('/xui/setting/vlessEnc/regenerate');
+                        this.loading(false);
+                        if (msg.success && msg.obj != null) {
+                            this.vlessEnc = msg.obj;
+                            this.$message.success('已生成新的密钥对，Xray 已重启，请重新复制客户端链接');
+                        }
+                    },
+                });
+            },
+            async getReality() {
+                const msg = await HttpUtil.post('/xui/setting/reality');
+                if (msg.success && msg.obj != null) {
+                    this.realityList = msg.obj;
+                }
+            },
+            async rotateReality(row) {
+                const what = row ? ('#' + row.id + ' ' + row.remark) : '全部 REALITY 入站';
+                this.$confirm({
+                    title: '轮换 REALITY 密钥',
+                    content: '将重新生成 ' + what + ' 的 X25519 密钥对与 shortId，旧链接立即失效。继续？',
+                    okText: '继续',
+                    cancelText: '取消',
+                    okButtonProps: {props: {type: 'danger'}},
+                    onOk: async () => {
+                        this.loading(true);
+                        const msg = await HttpUtil.post('/xui/setting/reality/rotate/' + (row ? row.id : 0));
+                        this.loading(false);
+                        if (msg.success && msg.obj != null) {
+                            this.realityList = msg.obj;
+                            this.$message.success('REALITY 密钥已轮换，Xray 已重启，请重新复制客户端链接');
+                            await this.getVlessEnc();
+                        }
+                    },
+                });
+            },
+            async disableVlessEnc() {
+                this.$confirm({
+                    title: '关闭 VLESS Encryption',
+                    content: '关闭后客户端需把 encryption 改回 none。继续？',
+                    okText: '继续',
+                    cancelText: '取消',
+                    okButtonProps: {props: {type: 'danger'}},
+                    onOk: async () => {
+                        this.loading(true);
+                        const msg = await HttpUtil.post('/xui/setting/vlessEnc/disable');
+                        this.loading(false);
+                        if (msg.success && msg.obj != null) {
+                            this.vlessEnc = msg.obj;
+                            this.$message.success('已关闭 VLESS Encryption');
+                        }
+                    },
+                });
+            },
+            copyText(text) {
+                if (!text) {
+                    return;
+                }
+                const done = () => this.$message.success('已复制');
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done).catch(() => this.fallbackCopy(text, done));
+                    return;
+                }
+                this.fallbackCopy(text, done);
+            },
+            fallbackCopy(text, done) {
+                const area = document.createElement('textarea');
+                area.value = text;
+                area.style.position = 'fixed';
+                area.style.opacity = '0';
+                document.body.appendChild(area);
+                area.select();
+                try {
+                    document.execCommand('copy');
+                    done();
+                } catch (e) {
+                    this.$message.error('复制失败，请手动复制');
+                }
+                document.body.removeChild(area);
+            },
+            async restartPanel() {
+                await new Promise(resolve => {
+                    this.$confirm({
+                        title: '重启面板',
+                        content: '确定要重启面板吗？点击确定将于 3 秒后重启，若重启后无法访问面板，请前往服务器查看面板日志信息',
+                        okText: '确定',
+                        cancelText: '取消',
+                        onOk: () => resolve(),
+                    });
+                });
+                this.loading(true);
+                const msg = await HttpUtil.post("/xui/setting/restartPanel");
+                this.loading(false);
+                if (msg.success) {
+                    this.loading(true);
+                    await PromiseUtil.sleep(5000);
+                    location.reload();
+                }
+            },
+        },
+        async mounted() {
+            await this.getAllSetting();
+            await this.getVlessEnc();
+            await this.getReality();
+            while (true) {
+                await PromiseUtil.sleep(1000);
+                this.saveBtnDisable = this.oldAllSetting.equals(this.allSetting);
+            }
+        },
+    });
+</script>
+</body>
+</html>

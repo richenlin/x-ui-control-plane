@@ -1,0 +1,116 @@
+{{define "inboundModal"}}
+<a-modal id="inbound-modal" v-model="inModal.visible" :title="inModal.title" @ok="inModal.ok"
+         :confirm-loading="inModal.confirmLoading" :closable="true" :mask-closable="false"
+         :ok-text="inModal.okText" cancel-text='{{ i18n "close" }}'>
+    {{template "form/inbound"}}
+</a-modal>
+<script>
+
+    const inModal = {
+        title: '',
+        visible: false,
+        confirmLoading: false,
+        okText: '确定',
+        confirm: null,
+        inbound: new Inbound(),
+        dbInbound: new DBInbound(),
+        ok() {
+            ObjectUtil.execute(inModal.confirm, inModal.inbound, inModal.dbInbound);
+        },
+        show({ title='', okText='确定', inbound=null, dbInbound=null, confirm=(inbound, dbInbound)=>{} }) {
+            this.title = title;
+            this.okText = okText;
+            if (inbound) {
+                this.inbound = Inbound.fromJson(inbound.toJson());
+            } else {
+                this.inbound = new Inbound();
+            }
+            if (dbInbound) {
+                this.dbInbound = new DBInbound(dbInbound);
+            } else {
+                this.dbInbound = new DBInbound();
+            }
+            this.confirm = confirm;
+            this.visible = true;
+        },
+        close() {
+            inModal.visible = false;
+            inModal.loading(false);
+        },
+        loading(loading) {
+            inModal.confirmLoading = loading;
+        },
+    };
+
+    const protocols = {
+        VMESS: Protocols.VMESS,
+        VLESS: Protocols.VLESS,
+        TROJAN: Protocols.TROJAN,
+        SHADOWSOCKS: Protocols.SHADOWSOCKS,
+        DOKODEMO: Protocols.DOKODEMO,
+        SOCKS: Protocols.SOCKS,
+        HTTP: Protocols.HTTP,
+        HYSTERIA: Protocols.HYSTERIA,
+    };
+
+    new Vue({
+        delimiters: ['[[', ']]'],
+        el: '#inbound-modal',
+        data: {
+            inModal: inModal,
+            Protocols: protocols,
+            SSMethods: SSMethods,
+            get inbound() {
+                return inModal.inbound;
+            },
+            get dbInbound() {
+                return inModal.dbInbound;
+            }
+        },
+        methods: {
+            streamNetworkChange(oldValue) {
+                if (oldValue === 'kcp') {
+                    this.inModal.inbound.tls = false;
+                }
+            },
+            async toggleVlessEnc(enabled) {
+                const settings = this.inModal.inbound.settings;
+                if (!enabled) {
+                    settings.decryption = 'none';
+                    return;
+                }
+                await this.generateVlessEnc();
+            },
+            async generateRealityKeys() {
+                const msg = await HttpUtil.post('/xui/setting/realityKeyPair');
+                if (!msg.success || msg.obj == null) {
+                    this.$message.error(msg.msg || '生成失败');
+                    return;
+                }
+                const reality = this.inModal.inbound.stream.reality;
+                reality.privateKey = msg.obj.privateKey;
+                if (!reality.shortIds || reality.shortIds.length === 0) {
+                    reality.shortIds = [msg.obj.shortId];
+                }
+                if (!reality.dest) {
+                    reality.dest = '127.0.0.1:443';
+                }
+                if (!reality.serverNames || reality.serverNames.length === 0) {
+                    reality.serverNames = [location.hostname];
+                }
+                this.$message.success('已生成 REALITY 密钥（公钥：' + msg.obj.publicKey.slice(0, 12) + '…）');
+            },
+            async generateVlessEnc() {
+                const msg = await HttpUtil.post('/xui/setting/vlessEnc/pair');
+                if (msg.success && msg.obj != null) {
+                    this.inModal.inbound.settings.decryption = msg.obj.decryption;
+                    this.$message.success('已生成后量子密钥对，保存入站后生效');
+                } else {
+                    this.$message.error(msg.msg || '生成失败');
+                }
+            }
+        }
+    });
+
+</script>
+{{end}}

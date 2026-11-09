@@ -1,0 +1,28 @@
+{{define "js"}}
+<script src="{{ .base_path }}assets/vue@2.6.12/vue.min.js"></script>
+<script src="{{ .base_path }}assets/moment/moment.min.js"></script>
+<script src="{{ .base_path }}assets/moment/locale/zh-cn.js"></script>
+<script src="{{ .base_path }}assets/ant-design-vue@1.7.2/antd-with-locales.min.js"></script>
+<script src="{{ .base_path }}assets/base64/base64.min.js"></script>
+<script src="{{ .base_path }}assets/axios/axios.min.js"></script>
+<script src="{{ .base_path }}assets/qs/qs.min.js"></script>
+<script src="{{ .base_path }}assets/qrcode/qrious.min.js"></script>
+<script src="{{ .base_path }}assets/clipboard/clipboard.min.js"></script>
+<script src="{{ .base_path }}assets/uri/URI.min.js"></script>
+<script src="{{ .base_path }}assets/js/axios-init.js?{{ .cur_ver }}"></script>
+<script src="{{ .base_path }}assets/js/util/common.js?{{ .cur_ver }}"></script>
+<script src="{{ .base_path }}assets/js/util/date-util.js?{{ .cur_ver }}"></script>
+<script src="{{ .base_path }}assets/js/util/utils.js?{{ .cur_ver }}"></script>
+<script src="{{ .base_path }}assets/js/model/xray.js?{{ .cur_ver }}"></script>
+<script src="{{ .base_path }}assets/js/model/models.js?{{ .cur_ver }}"></script>
+<script>
+    moment.locale('zh-cn');
+    const basePath = '{{ .base_path }}';
+    axios.defaults.baseURL = basePath;
+    const zhCNLocale = (window.antd && antd.locales && antd.locales.zh_CN) || null;
+    if (zhCNLocale) {
+        // every Root component provides the zh-CN antd locale (antd reads `localeData` via inject)
+        Vue.mixin({provide: () => ({localeData: {antLocale: zhCNLocale}})});
+    }
+</script>
+{{end}}

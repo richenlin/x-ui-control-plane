@@ -1,0 +1,37 @@
+{{define "form/hysteria"}}
+<a-form layout="inline">
+    <a-form-item label="认证密码">
+        <a-input v-model.trim="inbound.settings.clients[0].auth" style="width: 320px"></a-input>
+    </a-form-item>
+    <a-form-item label="备注(email)">
+        <a-input v-model.trim="inbound.settings.clients[0].email" style="width: 160px"></a-input>
+    </a-form-item>
+    <a-form-item>
+        <span slot="label">
+            UDP 空闲超时(秒)
+            <a-tooltip>
+                <template slot="title">2 ~ 600，默认 60</template>
+                <a-icon type="question-circle" theme="filled"></a-icon>
+            </a-tooltip>
+        </span>
+        <a-input-number v-model.number="inbound.stream.hysteria.udpIdleTimeout" :min="2" :max="600"></a-input-number>
+    </a-form-item>
+</a-form>
+
+<a-form layout="inline">
+    <a-form-item label="伪装类型">
+        <a-select v-model="inbound.stream.hysteria.masqueradeType" style="width: 140px">
+            <a-select-option value="string">string</a-select-option>
+            <a-select-option value="file">file</a-select-option>
+            <a-select-option value="url">url</a-select-option>
+        </a-select>
+    </a-form-item>
+    <a-form-item label="伪装内容/路径/URL" style="flex: 1">
+        <a-input v-model.trim="inbound.stream.hysteria.masqueradeContent"></a-input>
+    </a-form-item>
+</a-form>
+
+<a-alert type="info" show-icon style="margin-top: 8px"
+         message="Hysteria2 基于 QUIC，使用 hysteria 传输 + TLS(h3)，证书默认取容器内 /certs/fullchain.pem 与 /certs/privkey.pem。">
+</a-alert>
+{{end}}

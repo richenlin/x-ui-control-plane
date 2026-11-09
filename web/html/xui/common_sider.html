@@ -1,0 +1,116 @@
+{{define "brandMark"}}
+<span class="brand-mark" aria-hidden="true">
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 2.5 37.5 20 20 37.5 2.5 20Z" stroke="currentColor" stroke-width="1.1" opacity=".55"/>
+        <path d="M13.5 13.5 26.5 26.5M26.5 13.5 13.5 26.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"/>
+    </svg>
+</span>
+{{end}}
+
+
+{{define "brandBlock"}}
+<span class="brand-wordblock">
+    <span class="brand-word">X<span class="brand-dot">·</span>UI</span>
+    <span class="brand-sub">CONTROL PLANE</span>
+</span>
+{{end}}
+
+
+{{define "navItems"}}
+<a class="nav-item{{ if eq .request_uri (printf "%sxui/" .base_path) }} is-active{{ end }}"
+   href="{{ .base_path }}xui/">
+    <span class="nav-ico"><a-icon type="dashboard"></a-icon></span>
+    <span class="nav-label">系统状态</span>
+    <span class="nav-idx">01</span>
+</a>
+<a class="nav-item{{ if eq .request_uri (printf "%sxui/inbounds" .base_path) }} is-active{{ end }}"
+   href="{{ .base_path }}xui/inbounds">
+    <span class="nav-ico"><a-icon type="deployment-unit"></a-icon></span>
+    <span class="nav-label">入站列表</span>
+    <span class="nav-idx">02</span>
+</a>
+<a class="nav-item{{ if eq .request_uri (printf "%sxui/setting" .base_path) }} is-active{{ end }}"
+   href="{{ .base_path }}xui/setting">
+    <span class="nav-ico"><a-icon type="setting"></a-icon></span>
+    <span class="nav-label">面板设置</span>
+    <span class="nav-idx">03</span>
+</a>
+{{end}}
+
+
+{{define "commonSider"}}
+<aside class="sider">
+    <a class="brand" href="{{ .base_path }}xui/">
+        {{template "brandMark"}}
+        {{template "brandBlock"}}
+    </a>
+    <div class="sider-label">Workspace / 操作台</div>
+    <nav class="nav">
+        {{template "navItems" .}}
+    </nav>
+    <div class="sider-foot">
+        <a class="nav-item" href="https://github.com/vaxilu/x-ui/" target="_blank" rel="noopener noreferrer">
+            <span class="nav-ico"><a-icon type="github"></a-icon></span>
+            <span class="nav-label">GitHub</span>
+            <span class="nav-idx">↗</span>
+        </a>
+        <a class="nav-item" href="{{ .base_path }}logout">
+            <span class="nav-ico"><a-icon type="logout"></a-icon></span>
+            <span class="nav-label">退出登录</span>
+        </a>
+        <div class="sider-meta"><span class="pulse"></span><span>SESSION ACTIVE</span></div>
+        <div class="sider-meta" style="padding-top: 2px;">X-UI · 控制台</div>
+    </div>
+</aside>
+
+<header class="topbar">
+    <a class="brand" href="{{ .base_path }}xui/">
+        {{template "brandMark"}}
+        {{template "brandBlock"}}
+    </a>
+    <button class="topbar-menu" type="button" aria-label="打开菜单" @click="siderDrawer.show()">
+        <a-icon type="menu"></a-icon>
+    </button>
+</header>
+
+<a-drawer id="sider-drawer" placement="left" :closable="false" width="284"
+          :wrap-style="{ padding: 0 }" :body-style="{ padding: 0 }"
+          :visible="siderDrawer.visible" @close="siderDrawer.close()">
+    <div class="drawer-inner">
+        <div class="drawer-head">
+            <a class="brand" href="{{ .base_path }}xui/">
+                {{template "brandMark"}}
+                {{template "brandBlock"}}
+            </a>
+            <button class="drawer-close" type="button" aria-label="关闭菜单" @click="siderDrawer.close()">
+                <a-icon type="close"></a-icon>
+            </button>
+        </div>
+        <div class="sider-label">Workspace / 操作台</div>
+        <nav class="nav">
+            {{template "navItems" .}}
+        </nav>
+        <div class="sider-foot">
+            <a class="nav-item" href="{{ .base_path }}logout">
+                <span class="nav-ico"><a-icon type="logout"></a-icon></span>
+                <span class="nav-label">退出登录</span>
+            </a>
+            <div class="sider-meta"><span class="pulse"></span><span>SESSION ACTIVE</span></div>
+        </div>
+    </div>
+</a-drawer>
+<script>
+    const siderDrawer = {
+        visible: false,
+        show() {
+            this.visible = true;
+        },
+        close() {
+            this.visible = false;
+        },
+        change() {
+            this.visible = !this.visible;
+        }
+    };
+</script>
+{{end}}

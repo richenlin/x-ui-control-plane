@@ -1,0 +1,71 @@
+{{define "form/vless"}}
+<a-form layout="inline">
+    <a-form-item label="id">
+        <a-input v-model.trim="inbound.settings.vlesses[0].id"></a-input>
+    </a-form-item>
+    <a-form-item v-if="inbound.xtls || inbound.reality" label="flow">
+        <a-select v-model="inbound.settings.vlesses[0].flow" style="width: 150px">
+            <a-select-option value="">无</a-select-option>
+            <a-select-option v-for="key in FLOW_CONTROL" :value="key">[[ key ]]</a-select-option>
+        </a-select>
+    </a-form-item>
+</a-form>
+
+<a-form layout="inline">
+    <a-form-item>
+        <span slot="label">
+            VLESS Encryption
+            <a-tooltip>
+                <template slot="title">ML-KEM-768 + X25519 后量子加密，客户端需 Xray ≥ 26.3</template>
+                <a-icon type="question-circle" theme="filled"></a-icon>
+            </a-tooltip>
+        </span>
+        <a-switch :checked="inbound.settings.decryption !== 'none'"
+                  @change="toggleVlessEnc"></a-switch>
+    </a-form-item>
+    <template v-if="inbound.settings.decryption !== 'none'">
+        <a-form-item label="decryption" style="flex: 1; min-width: 320px;">
+            <a-input v-model.trim="inbound.settings.decryption" readonly></a-input>
+        </a-form-item>
+        <a-form-item>
+            <a-button size="small" type="primary" @click="generateVlessEnc">重新生成密钥</a-button>
+        </a-form-item>
+    </template>
+</a-form>
+
+<a-form layout="inline">
+    <a-form-item label="fallbacks">
+        <a-row>
+            <a-button type="primary" size="small"
+                      @click="inbound.settings.addFallback()">
+                +
+            </a-button>
+        </a-row>
+    </a-form-item>
+</a-form>
+
+<!-- vless fallbacks -->
+<a-form v-for="(fallback, index) in inbound.settings.fallbacks" layout="inline">
+    <a-divider>
+        fallback[[ index + 1 ]]
+        <a-icon type="delete" @click="() => inbound.settings.delFallback(index)"
+                style="color: rgb(255, 77, 79);cursor: pointer;"/>
+    </a-divider>
+    <a-form-item label="name">
+        <a-input v-model="fallback.name"></a-input>
+    </a-form-item>
+    <a-form-item label="alpn">
+        <a-input v-model="fallback.alpn"></a-input>
+    </a-form-item>
+    <a-form-item label="path">
+        <a-input v-model="fallback.path"></a-input>
+    </a-form-item>
+    <a-form-item label="dest">
+        <a-input v-model="fallback.dest"></a-input>
+    </a-form-item>
+    <a-form-item label="xver">
+        <a-input type="number" v-model.number="fallback.xver"></a-input>
+    </a-form-item>
+    <a-divider v-if="inbound.settings.fallbacks.length - 1 === index"/>
+</a-form>
+{{end}}

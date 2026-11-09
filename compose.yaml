@@ -1,0 +1,58 @@
+name: x-ui
+
+services:
+  x-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # GitHub release CDN is unreliable through the default bridge DNS/NAT
+      network: host
+    image: ${XUI_IMAGE:-x-ui:hardened-20261109}
+    container_name: x-ui
+    # host networking: the panel and every xray inbound/outbound use the host
+    # network stack directly, no port mapping (and no docker NAT surprises).
+    network_mode: host
+    restart: unless-stopped
+    stop_grace_period: 30s
+    volumes:
+      - /etc/x-ui:/etc/x-ui
+      # 证书目录（install.sh 会把 --cert/--key 拷到 /etc/x-ui/certs）
+      - /etc/x-ui/certs:/certs:ro
+    environment:
+      TZ: Asia/Shanghai
+      XUI_LOG_LEVEL: info
+
+      # ---- login brute force protection (web/guard) ----
+      # 5 failures per IP in 10 min -> 15 min lock, doubling up to 24 h
+      XUI_LOGIN_MAX_FAILS: "5"
+      XUI_LOGIN_WINDOW: 10m
+      XUI_LOGIN_LOCK: 15m
+      XUI_LOGIN_MAX_LOCK: 24h
+      # distributed attack circuit breaker: 100 failures in 10 min pauses logins
+      XUI_LOGIN_GLOBAL_FAILS: "100"
+      XUI_LOGIN_GLOBAL_WINDOW: 10m
+      XUI_LOGIN_GLOBAL_LOCK: 15m
+
+      # only enable when the panel really sits behind a trusted reverse proxy
+      # XUI_TRUST_PROXY: "true"
+      # set to true if the panel itself serves HTTPS (cert/key configured)
+      # XUI_COOKIE_SECURE: "true"
+
+      XUI_HEALTHCHECK_PORT: "4433"
+    # 内存硬上限：当前实际占用约 32 MiB，256 MiB 留足余量。
+    # 超限只会重启本容器（restart: unless-stopped），不会影响宿主机上的其他服务。
+    mem_limit: 256m
+    memswap_limit: 384m
+    # the panel/xray never need elevated capabilities
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+

@@ -1,0 +1,36 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        run: docker build -t x-ui:${GITHUB_REF_NAME:-dev} .
+
+      - name: Verify core
+        run: docker run --rm x-ui:${GITHUB_REF_NAME:-dev} ./bin/xray-linux-amd64 -version
+
+      - name: Build migration bundle
+        run: |
+          mkdir -p dist
+          docker save x-ui:${GITHUB_REF_NAME:-dev} | gzip -1 > dist/x-ui-image.tar.gz
+          tar czf dist/x-ui-src.tar.gz --exclude=./dist --exclude=./.git .
+          cp install.sh compose.yaml README.md docs/DEPLOY.md dist/
+          (cd dist && sha256sum * > SHA256SUMS && ls -lh)
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*
+          generate_release_notes: true

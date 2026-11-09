@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+{{template "head" .}}
+<body class="console-body">
+<div id="app" v-cloak>
+    {{ template "commonSider" . }}
+
+    <main id="content-layout" class="content">
+        <header class="page-head">
+            <div>
+                <p class="eyebrow">Nodes / 02</p>
+                <h1>入站列表</h1>
+                <p class="page-sub">管理节点协议、端口、流量配额与到期时间</p>
+            </div>
+            <div class="head-meta">
+                <span class="chip" :class="activeCount > 0 ? 'chip--ok' : 'chip--off'">
+                    <span class="dot"></span>[[ activeCount ]] ACTIVE
+                </span>
+            </div>
+        </header>
+
+        <section class="tile-grid" aria-label="入站汇总">
+            <div class="tile">
+                <span>Inbounds</span>
+                <b>[[ dbInbounds.length ]]<em>/ [[ activeCount ]] active</em></b>
+            </div>
+            <div class="tile">
+                <span>Total Upload</span>
+                <b>[[ sizeFormat(total.up) ]]</b>
+            </div>
+            <div class="tile">
+                <span>Total Download</span>
+                <b>[[ sizeFormat(total.down) ]]</b>
+            </div>
+            <div class="tile">
+                <span>Limited Quota</span>
+                <b :class="{'is-warn': limited.percent >= 80}">[[ sizeFormat(limited.used) ]]<em>/ [[ sizeFormat(limited.total) ]]</em></b>
+            </div>
+        </section>
+
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <a-button type="primary" icon="plus" @click="openAddInbound">添加入站</a-button>
+                <div class="searchbox">
+                    <a-icon type="search"></a-icon>
+                    <a-input v-model="searchKey" placeholder="搜索备注 / 协议 / 端口"></a-input>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <div class="segmented" role="tablist" aria-label="筛选">
+                    <button type="button" :class="{'is-active': filter === 'all'}" @click="filter = 'all'">全部</button>
+                    <button type="button" :class="{'is-active': filter === 'enabled'}" @click="filter = 'enabled'">启用</button>
+                    <button type="button" :class="{'is-active': filter === 'disabled'}" @click="filter = 'disabled'">停用</button>
+                    <button type="button" :class="{'is-active': filter === 'expired'}" @click="filter = 'expired'">已过期</button>
+                </div>
+                <span class="count-note">[[ filteredInbounds.length ]] / [[ dbInbounds.length ]]</span>
+                <a-tooltip title="刷新">
+                    <button class="icon-btn" type="button" @click="getDBInbounds"><a-icon type="reload"></a-icon></button>
+                </a-tooltip>
+            </div>
+        </div>
+
+        <a-spin :spinning="spinning" :delay="300">
+            <div class="ib-list" v-if="filteredInbounds.length > 0">
+                <article class="ib-card" :class="{'is-off': !ib.enable}" v-for="ib in filteredInbounds" :key="ib.id">
+                    <span class="proto" :data-proto="ib.protocol">[[ protoLabel(ib.protocol) ]]</span>
+
+                    <div class="ib-body">
+                        <div class="ib-title-row">
+                            <h3>[[ ib.remark || '未命名入站' ]]<span class="port">:[[ ib.port ]]</span></h3>
+                            <span class="mtag mtag--ok" v-if="ib.enable">ON</span>
+                            <span class="mtag" v-else>OFF</span>
+                            <span class="mtag" v-if="ib.total > 0" :class="barClass(ib) === 'is-crit' ? 'mtag--crit' : ''">[[ usagePct(ib).toFixed(0) ]]%</span>
+                            <span class="mtag mtag--crit" v-if="ib.expiryTime > 0 && ib.isExpiry">EXPIRED</span>
+                        </div>
+                        <div class="ib-traffic">
+                            <span class="bar" :class="barClass(ib)" v-if="ib.total > 0"><i :style="{ width: usagePct(ib) + '%' }"></i></span>
+                            <div class="ib-traffic-meta">
+                                <span class="up">↑ [[ sizeFormat(ib.up) ]]</span>
+                                <span class="down">↓ [[ sizeFormat(ib.down) ]]</span>
+                                <span class="total">/ [[ ib.total > 0 ? sizeFormat(ib.total) : '∞' ]]</span>
+                                <span class="total stream" v-if="streamOf(ib)">· [[ streamOf(ib) ]]</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ib-side" :class="expiryClass(ib)">
+                        <span class="ib-side-label">到期</span>
+                        <b>[[ expiryText(ib) ]]</b>
+                        <em>[[ expiryRelative(ib) ]]</em>
+                    </div>
+
+                    <div class="ib-actions">
+                        <a-switch size="small" v-model="ib.enable" @change="switchEnable(ib)"></a-switch>
+                        <a-tooltip title="复制客户端链接">
+                            <button class="icon-btn" type="button" @click="copyLink(ib)"><a-icon type="copy"></a-icon></button>
+                        </a-tooltip>
+                        <a-tooltip title="二维码" v-if="ib.hasLink()">
+                            <button class="icon-btn" type="button" @click="showQrcode(ib)"><a-icon type="qrcode"></a-icon></button>
+                        </a-tooltip>
+                        <a-tooltip title="编辑" v-if="ib.hasLink()">
+                            <button class="icon-btn" type="button" @click="openEditInbound(ib)"><a-icon type="edit"></a-icon></button>
+                        </a-tooltip>
+                        <a-dropdown :trigger="['click']">
+                            <button class="icon-btn" type="button" @click.prevent><a-icon type="more"></a-icon></button>
+                            <a-menu slot="overlay" @click="a => clickAction(a.key, ib)">
+                                <a-menu-item key="info"><a-icon type="profile"></a-icon>详细信息</a-menu-item>
+                                <a-menu-item key="resetTraffic"><a-icon type="retweet"></a-icon>重置流量</a-menu-item>
+                                <a-menu-item key="delete" class="menu-danger"><a-icon type="delete"></a-icon>删除入站</a-menu-item>
+                            </a-menu>
+                        </a-dropdown>
+                    </div>
+                </article>
+            </div>
+
+            <div class="empty-state" v-else>
+                <a-icon :type="dbInbounds.length > 0 ? 'search' : 'deployment-unit'"></a-icon>
+                <h4>[[ dbInbounds.length > 0 ? '没有匹配的入站' : '还没有入站' ]]</h4>
+                <p>[[ dbInbounds.length > 0 ? '换个关键词，或把筛选切回「全部」。' : '点击「添加入站」创建第一个节点。' ]]</p>
+            </div>
+        </a-spin>
+
+        <footer class="console-foot">
+            <span>X-UI CONTROL PLANE · INBOUND REGISTRY</span>
+            <span>[[ sizeFormat(total.up + total.down) ]] TRANSFERRED</span>
+        </footer>
+    </main>
+</div>
+
+{{template "js" .}}
+<script>
+    const app = new Vue({
+        delimiters: ['[[', ']]'],
+        el: '#app',
+        data: {
+            siderDrawer,
+            spinning: false,
+            inbounds: [],
+            dbInbounds: [],
+            searchKey: '',
+            filter: 'all',
+        },
+        computed: {
+            total() {
+                let up = 0, down = 0, total = 0;
+                for (const inbound of this.dbInbounds) {
+                    up += inbound.up;
+                    down += inbound.down;
+                    total += inbound.total;
+                }
+                return {up, down, total};
+            },
+            activeCount() {
+                return this.dbInbounds.filter(inbound => inbound.enable).length;
+            },
+            limited() {
+                let used = 0, total = 0;
+                for (const inbound of this.dbInbounds) {
+                    if (inbound.total > 0) {
+                        used += inbound.up + inbound.down;
+                        total += inbound.total;
+                    }
+                }
+                return {used, total, percent: total > 0 ? used / total * 100 : 0};
+            },
+            filteredInbounds() {
+                const key = (this.searchKey || '').trim().toLowerCase();
+                return this.dbInbounds.filter(inbound => {
+                    if (this.filter === 'enabled' && !inbound.enable) {
+                        return false;
+                    }
+                    if (this.filter === 'disabled' && inbound.enable) {
+                        return false;
+                    }
+                    if (this.filter === 'expired' && !(inbound.expiryTime > 0 && inbound.isExpiry)) {
+                        return false;
+                    }
+                    if (!key) {
+                        return true;
+                    }
+                    return [inbound.remark, inbound.tag, inbound.protocol, String(inbound.port)]
+                        .some(value => (value || '').toLowerCase().includes(key));
+                });
+            },
+        },
+        methods: {
+            loading(spinning = true) {
+                this.spinning = spinning;
+            },
+            async getDBInbounds() {
+                this.loading();
+                const msg = await HttpUtil.post('/xui/inbound/list');
+                this.loading(false);
+                if (!msg.success) {
+                    return;
+                }
+                this.setInbounds(msg.obj);
+            },
+            setInbounds(dbInbounds) {
+                this.inbounds.splice(0);
+                this.dbInbounds.splice(0);
+                for (const inbound of dbInbounds) {
+                    const dbInbound = new DBInbound(inbound);
+                    try {
+                        this.inbounds.push(dbInbound.toInbound());
+                    } catch (e) {
+                        // hysteria 等没有前端表单模型的协议
+                        this.inbounds.push(null);
+                    }
+                    this.dbInbounds.push(dbInbound);
+                }
+            },
+            clickAction(key, dbInbound) {
+                switch (key) {
+                    case 'info':
+                        this.showInfo(dbInbound);
+                        break;
+                    case 'resetTraffic':
+                        this.resetTraffic(dbInbound);
+                        break;
+                    case 'delete':
+                        this.delInbound(dbInbound);
+                        break;
+                }
+            },
+            openAddInbound() {
+                inModal.show({
+                    title: '添加入站',
+                    okText: '添加',
+                    confirm: async (inbound, dbInbound) => {
+                        inModal.loading();
+                        await this.addInbound(inbound, dbInbound);
+                        inModal.close();
+                    },
+                });
+            },
+            openEditInbound(dbInbound) {
+                const inbound = dbInbound.toInbound();
+                inModal.show({
+                    title: '修改入站',
+                    okText: '修改',
+                    inbound: inbound,
+                    dbInbound: dbInbound,
+                    confirm: async (inbound, dbInbound) => {
+                        inModal.loading();
+                        await this.updateInbound(inbound, dbInbound);
+                        inModal.close();
+                    },
+                });
+            },
+            async addInbound(inbound, dbInbound) {
+                const data = {
+                    up: dbInbound.up,
+                    down: dbInbound.down,
+                    total: dbInbound.total,
+                    remark: dbInbound.remark,
+                    enable: dbInbound.enable,
+                    expiryTime: dbInbound.expiryTime,
+
+                    listen: inbound.listen,
+                    port: inbound.port,
+                    protocol: inbound.protocol,
+                    settings: inbound.settings.toString(),
+                    streamSettings: inbound.stream.toString(),
+                    sniffing: inbound.canSniffing() ? inbound.sniffing.toString() : '{}',
+                };
+                await this.submit('/xui/inbound/add', data, inModal);
+            },
+            async updateInbound(inbound, dbInbound) {
+                const data = {
+                    up: dbInbound.up,
+                    down: dbInbound.down,
+                    total: dbInbound.total,
+                    remark: dbInbound.remark,
+                    enable: dbInbound.enable,
+                    expiryTime: dbInbound.expiryTime,
+
+                    listen: inbound.listen,
+                    port: inbound.port,
+                    protocol: inbound.protocol,
+                    settings: inbound.settings.toString(),
+                    streamSettings: inbound.stream.toString(),
+                    sniffing: inbound.canSniffing() ? inbound.sniffing.toString() : '{}',
+                };
+                await this.submit(`/xui/inbound/update/${dbInbound.id}`, data, inModal);
+            },
+            resetTraffic(dbInbound) {
+                this.$confirm({
+                    title: '重置流量',
+                    content: '确定要重置该入站的上下行流量吗？',
+                    okText: '重置',
+                    cancelText: '取消',
+                    onOk: () => this.submit('/xui/inbound/resetTraffic/' + dbInbound.id),
+                });
+            },
+            delInbound(dbInbound) {
+                this.$confirm({
+                    title: '删除入站',
+                    content: '确定要删除「' + (dbInbound.remark || dbInbound.port) + '」吗？删除后不可恢复。',
+                    okText: '删除',
+                    cancelText: '取消',
+                    okButtonProps: {props: {type: 'danger'}},
+                    onOk: () => this.submit('/xui/inbound/del/' + dbInbound.id),
+                });
+            },
+            async showQrcode(dbInbound) {
+                const msg = await HttpUtil.post('/xui/inbound/link/' + dbInbound.id);
+                if (!msg.success || msg.obj == null || !msg.obj.link) {
+                    this.$message.error(msg.obj && msg.obj.error ? msg.obj.error : '无法生成链接');
+                    return;
+                }
+                qrModal.show('扫码导入 · ' + (dbInbound.remark || dbInbound.port), msg.obj.link);
+            },
+            async showInfo(dbInbound) {
+                if (!dbInbound.hasLink()) {
+                    txtModal.show('详细信息 · ' + dbInbound.protocol, JSON.stringify({
+                        port: dbInbound.port,
+                        protocol: dbInbound.protocol,
+                        settings: this.safeJson(dbInbound.settings),
+                        streamSettings: this.safeJson(dbInbound.streamSettings),
+                        sniffing: this.safeJson(dbInbound.sniffing),
+                    }, null, 2));
+                    return;
+                }
+                const msg = await HttpUtil.post('/xui/inbound/link/' + dbInbound.id);
+                window.__xuiInboundLink = (msg.success && msg.obj) ? (msg.obj.link || '') : '';
+                infoModal.show(dbInbound);
+            },
+            safeJson(text) {
+                try {
+                    return JSON.parse(text || '{}');
+                } catch (e) {
+                    return text;
+                }
+            },
+            switchEnable(dbInbound) {
+                this.submit(`/xui/inbound/update/${dbInbound.id}`, dbInbound);
+            },
+            async submit(url, data, modal) {
+                const msg = await HttpUtil.postWithModal(url, data, modal);
+                if (msg.success) {
+                    await this.getDBInbounds();
+                }
+            },
+            protoLabel(protocol) {
+                return {
+                    'shadowsocks': 'SS',
+                    'dokodemo-door': 'DOKODEMO',
+                    'hysteria2': 'HY2',
+                    'hysteria': 'HY2',
+                }[protocol] || protocol;
+            },
+            usagePct(ib) {
+                if (!ib.total || ib.total <= 0) {
+                    return 0;
+                }
+                return Math.max(0, Math.min(100, (ib.up + ib.down) / ib.total * 100));
+            },
+            barClass(ib) {
+                if (!ib.total || ib.total <= 0) {
+                    return 'is-unlimited';
+                }
+                const percent = this.usagePct(ib);
+                if (percent >= 95) {
+                    return 'is-crit';
+                }
+                if (percent >= 75) {
+                    return 'is-warn';
+                }
+                return 'is-ok';
+            },
+            streamOf(ib) {
+                let stream = {}, settings = {};
+                try {
+                    stream = JSON.parse(ib.streamSettings || '{}') || {};
+                } catch (e) {
+                }
+                try {
+                    settings = JSON.parse(ib.settings || '{}') || {};
+                } catch (e) {
+                }
+                const parts = [];
+                if (stream.network) {
+                    parts.push(stream.network);
+                }
+                if (stream.security && stream.security !== 'none') {
+                    parts.push(stream.security);
+                }
+                const clients = settings.clients || settings.vlesses || settings.vmesses || [];
+                if (clients.length > 0 && clients[0].flow && clients[0].flow.indexOf('vision') >= 0) {
+                    parts.push('vision');
+                }
+                if (settings.decryption && settings.decryption !== 'none') {
+                    parts.push('pq');
+                }
+                return parts.join(' · ');
+            },
+            async copyLink(ib) {
+                const msg = await HttpUtil.post('/xui/inbound/link/' + ib.id);
+                if (!msg.success || msg.obj == null || !msg.obj.link) {
+                    this.$message.error(msg.obj && msg.obj.error ? msg.obj.error : '无法生成链接');
+                    return;
+                }
+                const text = msg.obj.link;
+                const done = () => this.$message.success('已复制客户端链接');
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        done();
+                        return;
+                    } catch (e) {
+                    }
+                }
+                const area = document.createElement('textarea');
+                area.value = text;
+                area.style.position = 'fixed';
+                area.style.opacity = '0';
+                document.body.appendChild(area);
+                area.select();
+                try {
+                    document.execCommand('copy');
+                    done();
+                } catch (e) {
+                    this.$message.error('复制失败，请手动复制');
+                }
+                document.body.removeChild(area);
+            },
+            expiryClass(ib) {
+                if (!ib.expiryTime || ib.expiryTime <= 0) {
+                    return '';
+                }
+                if (ib.isExpiry) {
+                    return 'is-crit';
+                }
+                return moment(ib.expiryTime).diff(moment(), 'days') <= 7 ? 'is-warn' : '';
+            },
+            expiryText(ib) {
+                if (!ib.expiryTime || ib.expiryTime <= 0) {
+                    return '永久';
+                }
+                return moment(ib.expiryTime).format('YYYY-MM-DD');
+            },
+            expiryRelative(ib) {
+                if (!ib.expiryTime || ib.expiryTime <= 0) {
+                    return '不限时';
+                }
+                const days = moment(ib.expiryTime).diff(moment(), 'days');
+                return days >= 0 ? '剩 ' + days + ' 天' : '已过期 ' + Math.abs(days) + ' 天';
+            },
+        },
+        mounted() {
+            this.getDBInbounds();
+        },
+    });
+</script>
+{{template "inboundModal"}}
+{{template "promptModal"}}
+{{template "qrcodeModal"}}
+{{template "textModal"}}
+{{template "inboundInfoModal"}}
+</body>
+</html>

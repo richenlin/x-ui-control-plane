@@ -1,0 +1,102 @@
+{{define "form/tlsSettings"}}
+<!-- tls enable -->
+<a-form layout="inline" v-if="inbound.canSetTls()">
+    <a-form-item label="tls">
+        <a-switch v-model="inbound.tls">
+        </a-switch>
+    </a-form-item>
+    <a-form-item v-if="inbound.canEnableXTls()" label="xtls">
+        <a-switch v-model="inbound.xtls"></a-switch>
+    </a-form-item>
+    <a-form-item v-if="inbound.canEnableReality()">
+        <span slot="label">
+            REALITY
+            <a-tooltip>
+                <template slot="title">借用真实站点的 TLS 握手，无需证书；仅支持 tcp 传输，客户端需 Xray ≥ 1.8</template>
+                <a-icon type="question-circle" theme="filled"></a-icon>
+            </a-tooltip>
+        </span>
+        <a-switch v-model="inbound.reality"></a-switch>
+    </a-form-item>
+</a-form>
+
+<!-- reality settings -->
+<a-form v-if="inbound.reality" layout="inline">
+    <a-form-item label="回落目标 dest">
+        <a-input v-model.trim="inbound.stream.reality.dest" placeholder="127.0.0.1:443"
+                 style="width: 220px"></a-input>
+    </a-form-item>
+    <a-form-item label="serverNames">
+        <a-input v-model.trim="inbound.stream.reality.serverNames" placeholder="p.example.com"
+                 style="width: 220px"></a-input>
+    </a-form-item>
+    <a-form-item label="xver">
+        <a-select v-model.number="inbound.stream.reality.xver" style="width: 90px">
+            <a-select-option :value="0">0</a-select-option>
+            <a-select-option :value="1">1</a-select-option>
+            <a-select-option :value="2">2</a-select-option>
+        </a-select>
+    </a-form-item>
+    <a-form-item label="maxTimeDiff(ms)">
+        <a-input-number v-model.number="inbound.stream.reality.maxTimeDiff" :min="0"></a-input-number>
+    </a-form-item>
+</a-form>
+
+<a-form v-if="inbound.reality" layout="inline">
+    <a-form-item label="privateKey" style="flex: 1; min-width: 320px;">
+        <a-input v-model.trim="inbound.stream.reality.privateKey"></a-input>
+    </a-form-item>
+    <a-form-item label="shortIds">
+        <a-input v-model.trim="inbound.stream.reality.shortIds" placeholder="8 位 hex，可逗号分隔多个"
+                 style="width: 220px"></a-input>
+    </a-form-item>
+    <a-form-item>
+        <a-button size="small" type="primary" @click="generateRealityKeys">生成密钥</a-button>
+    </a-form-item>
+</a-form>
+
+<a-alert v-if="inbound.reality" type="info" show-icon style="margin-top: 8px"
+         message="dest 必须是真实的 TLS1.3 站点；指向本机时填 127.0.0.1:443（Caddy/Nginx）。serverNames 需与对方证书域名一致。">
+</a-alert>
+
+<!-- tls settings -->
+<a-form v-if="inbound.tls || inbound.xtls"
+        layout="inline">
+    <a-form-item label="域名">
+        <a-input v-model.trim="inbound.stream.tls.server"></a-input>
+    </a-form-item>
+    <a-form-item label="alpn" placeholder="http/1.1,h2">
+        <a-input v-model.trim="inbound.stream.tls.alpn"></a-input>
+    </a-form-item>
+    <a-form-item label="证书">
+        <a-radio-group v-model="inbound.stream.tls.certs[0].useFile"
+                       button-style="solid">
+            <a-radio-button :value="true">certificate file path</a-radio-button>
+            <a-radio-button :value="false">certificate file content</a-radio-button>
+        </a-radio-group>
+    </a-form-item>
+    <template v-if="inbound.stream.tls.certs[0].useFile">
+        <a-form-item label="公钥文件路径">
+            <a-input v-model.trim="inbound.stream.tls.certs[0].certFile"></a-input>
+        </a-form-item>
+        <a-form-item label="密钥文件路径">
+            <a-input v-model.trim="inbound.stream.tls.certs[0].keyFile"></a-input>
+        </a-form-item>
+    </template>
+    <template v-else>
+        <a-form-item label="公钥内容">
+            <a-input type="textarea" :rows="2"
+                     v-model="inbound.stream.tls.certs[0].cert"></a-input>
+        </a-form-item>
+        <a-form-item label="密钥内容">
+            <a-input type="textarea" :rows="2"
+                     v-model="inbound.stream.tls.certs[0].key"></a-input>
+        </a-form-item>
+    </template>
+</a-form>
+<a-form layout="inline" v-else-if = "inbound.stream.network === 'tcp' ">
+    <a-form-item label="tcp-acceptProxyProtocol">
+        <a-switch v-model="inbound.stream.tcp.acceptProxyProtocol"></a-switch>
+    </a-form-item>
+</a-form>
+{{end}}

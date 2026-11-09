@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+{{template "head" .}}
+<body class="console-body">
+<div id="app" v-cloak>
+    {{ template "commonSider" . }}
+
+    <main id="content-layout" class="content">
+        <header class="page-head">
+            <div>
+                <p class="eyebrow">Overview / 01</p>
+                <h1>系统状态</h1>
+                <p class="page-sub">主机资源、内核运行状态与流量概览</p>
+            </div>
+            <div class="head-meta">
+                <div class="clock">
+                    <span class="pulse" style="color: var(--mint);"></span>
+                    <b>[[ clock ]]</b>
+                    <span>LOCAL</span>
+                </div>
+                <span class="chip chip--ok"><span class="dot"></span>LIVE · 2S</span>
+            </div>
+        </header>
+
+        <section class="stat-grid" aria-label="资源占用">
+            <article class="stat-card" :data-tone="toneOf(status.cpu.percent)">
+                <header class="stat-head">
+                    <span class="stat-name">CPU</span>
+                    <span class="stat-code">SYS/01</span>
+                </header>
+                <div class="stat-body">
+                    <div class="ring">
+                        <svg viewBox="0 0 120 120" aria-hidden="true">
+                            <circle class="ring-track" cx="60" cy="60" r="52" pathLength="100"/>
+                            <circle class="ring-value" cx="60" cy="60" r="52" pathLength="100"
+                                    :stroke-dasharray="ringDash(status.cpu.percent)"/>
+                        </svg>
+                        <div class="ring-center">
+                            <strong>[[ fmtPct(status.cpu.percent) ]]</strong><span>%</span>
+                        </div>
+                    </div>
+                    <div class="stat-facts">
+                        <div class="fact"><span>1 MIN</span><b>[[ status.loads[0] ]]</b></div>
+                        <div class="fact"><span>5 MIN</span><b>[[ status.loads[1] ]]</b></div>
+                        <div class="fact"><span>15 MIN</span><b>[[ status.loads[2] ]]</b></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="stat-card" :data-tone="toneOf(status.mem.percent)">
+                <header class="stat-head">
+                    <span class="stat-name">MEMORY</span>
+                    <span class="stat-code">SYS/02</span>
+                </header>
+                <div class="stat-body">
+                    <div class="ring">
+                        <svg viewBox="0 0 120 120" aria-hidden="true">
+                            <circle class="ring-track" cx="60" cy="60" r="52" pathLength="100"/>
+                            <circle class="ring-value" cx="60" cy="60" r="52" pathLength="100"
+                                    :stroke-dasharray="ringDash(status.mem.percent)"/>
+                        </svg>
+                        <div class="ring-center">
+                            <strong>[[ fmtPct(status.mem.percent) ]]</strong><span>%</span>
+                        </div>
+                    </div>
+                    <div class="stat-facts">
+                        <div class="fact"><span>已用</span><b>[[ sizeFormat(status.mem.current) ]]</b></div>
+                        <div class="fact"><span>总量</span><b>[[ sizeFormat(status.mem.total) ]]</b></div>
+                        <div class="fact"><span>剩余</span><b>[[ sizeFormat(status.mem.total - status.mem.current) ]]</b></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="stat-card" :data-tone="toneOf(status.swap.percent)">
+                <header class="stat-head">
+                    <span class="stat-name">SWAP</span>
+                    <span class="stat-code">SYS/03</span>
+                </header>
+                <div class="stat-body">
+                    <div class="ring">
+                        <svg viewBox="0 0 120 120" aria-hidden="true">
+                            <circle class="ring-track" cx="60" cy="60" r="52" pathLength="100"/>
+                            <circle class="ring-value" cx="60" cy="60" r="52" pathLength="100"
+                                    :stroke-dasharray="ringDash(status.swap.percent)"/>
+                        </svg>
+                        <div class="ring-center">
+                            <strong>[[ fmtPct(status.swap.percent) ]]</strong><span>%</span>
+                        </div>
+                    </div>
+                    <div class="stat-facts">
+                        <div class="fact"><span>已用</span><b>[[ sizeFormat(status.swap.current) ]]</b></div>
+                        <div class="fact"><span>总量</span><b>[[ sizeFormat(status.swap.total) ]]</b></div>
+                        <div class="fact"><span>状态</span><b>[[ status.swap.current > 0 ? '有交换' : '未使用' ]]</b></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="stat-card" :data-tone="toneOf(status.disk.percent)">
+                <header class="stat-head">
+                    <span class="stat-name">STORAGE</span>
+                    <span class="stat-code">SYS/04</span>
+                </header>
+                <div class="stat-body">
+                    <div class="ring">
+                        <svg viewBox="0 0 120 120" aria-hidden="true">
+                            <circle class="ring-track" cx="60" cy="60" r="52" pathLength="100"/>
+                            <circle class="ring-value" cx="60" cy="60" r="52" pathLength="100"
+                                    :stroke-dasharray="ringDash(status.disk.percent)"/>
+                        </svg>
+                        <div class="ring-center">
+                            <strong>[[ fmtPct(status.disk.percent) ]]</strong><span>%</span>
+                        </div>
+                    </div>
+                    <div class="stat-facts">
+                        <div class="fact"><span>已用</span><b>[[ sizeFormat(status.disk.current) ]]</b></div>
+                        <div class="fact"><span>总量</span><b>[[ sizeFormat(status.disk.total) ]]</b></div>
+                        <div class="fact"><span>剩余</span><b>[[ sizeFormat(status.disk.total - status.disk.current) ]]</b></div>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="dash-hero">
+            <article class="panel kernel-panel">
+                <header class="panel-head">
+                    <span class="panel-title">Xray Core</span>
+                    <span class="chip" :class="kernelChipClass"><span class="dot"></span>[[ kernelStateLabel ]]</span>
+                </header>
+
+                <div class="kernel-main">
+                    <div>
+                        <div class="kernel-state" :class="'is-' + status.xray.state">
+                            <span class="state-dot"></span>[[ kernelStateLabel ]]
+                        </div>
+                        <p class="kernel-sub">
+                            <span>[[ status.xray.version || '版本未知' ]]</span>
+                            <span style="opacity:.4">/</span>
+                            <span class="count-note">内核随镜像固定</span>
+                        </p>
+                        <p v-if="status.xray.state === State.Error" class="kernel-error" :title="status.xray.errorMsg">
+                            [[ firstErrorLine ]]
+                        </p>
+                    </div>
+                    <div class="kernel-uptime">
+                        <span>UPTIME</span>
+                        <b>[[ formatSecond(status.uptime) ]]</b>
+                    </div>
+                </div>
+
+                <div class="kernel-grid">
+                    <div class="k-stat">
+                        <span>系统负载</span>
+                        <b>[[ status.loads[0] ]]</b>
+                        <em>5m [[ status.loads[1] ]] · 15m [[ status.loads[2] ]]</em>
+                    </div>
+                    <div class="k-stat">
+                        <span>TCP 连接</span>
+                        <b>[[ status.tcpCount ]]</b>
+                        <em>UDP [[ status.udpCount ]]</em>
+                    </div>
+                    <div class="k-stat">
+                        <span>交换分区</span>
+                        <b>[[ sizeFormat(status.swap.current) ]]</b>
+                        <em>共 [[ sizeFormat(status.swap.total) ]]</em>
+                    </div>
+                </div>
+            </article>
+
+            <article class="panel">
+                <header class="panel-head">
+                    <span class="panel-title">Network I/O</span>
+                    <span class="panel-note">60S WINDOW</span>
+                </header>
+
+                <div class="net-numbers">
+                    <div class="net-num net-num--up">
+                        <span>↑ Upload</span>
+                        <b>[[ sizeFormat(status.netIO.up) ]]<em>/s</em></b>
+                    </div>
+                    <div class="net-num net-num--down">
+                        <span>↓ Download</span>
+                        <b>[[ sizeFormat(status.netIO.down) ]]<em>/s</em></b>
+                    </div>
+                </div>
+
+                <div class="spark-wrap" aria-hidden="true">
+                    <svg class="spark" viewBox="0 0 100 34" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="netDownFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#6fe3bd" stop-opacity=".22"/>
+                                <stop offset="100%" stop-color="#6fe3bd" stop-opacity="0"/>
+                            </linearGradient>
+                            <linearGradient id="netUpFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#f0b34e" stop-opacity=".16"/>
+                                <stop offset="100%" stop-color="#f0b34e" stop-opacity="0"/>
+                            </linearGradient>
+                        </defs>
+                        <line class="grid-line" x1="0" y1="8" x2="100" y2="8"/>
+                        <line class="grid-line" x1="0" y1="17" x2="100" y2="17"/>
+                        <line class="grid-line" x1="0" y1="26" x2="100" y2="26"/>
+                        <path :d="downArea" fill="url(#netDownFill)"/>
+                        <path :d="upArea" fill="url(#netUpFill)"/>
+                        <polyline class="spark-line spark-line--down" :points="downPoints"/>
+                        <polyline class="spark-line spark-line--up" :points="upPoints"/>
+                    </svg>
+                </div>
+
+                <div class="net-foot">
+                    <div><span>SENT · 启动以来</span><b>[[ sizeFormat(status.netTraffic.sent) ]]</b></div>
+                    <div><span>RECV · 启动以来</span><b>[[ sizeFormat(status.netTraffic.recv) ]]</b></div>
+                </div>
+            </article>
+        </section>
+
+        <section class="panel inbound-panel">
+            <header class="panel-head">
+                <span class="panel-title">Inbound Overview</span>
+                <a class="panel-link" href="{{ .base_path }}xui/inbounds">全部入站 →</a>
+            </header>
+
+            <template v-if="dbInbounds.length > 0">
+                <a class="ib-line" v-for="ib in recentInbounds" :key="ib.id" :href="basePath + 'xui/inbounds'">
+                    <span class="dot" :class="ib.enable ? 'dot-on' : 'dot-off'"></span>
+                    <span class="proto" :data-proto="ib.protocol">[[ protoLabel(ib.protocol) ]]</span>
+                    <span class="ib-line-name">[[ ib.remark || '未命名入站' ]]<em>[[ ib.tag ]]</em></span>
+                    <span class="ib-line-port">:[[ ib.port ]]</span>
+                    <span class="ib-line-feat" v-if="featuresOf(ib).length">
+                        <em v-for="f in featuresOf(ib)" :key="f">[[ f ]]</em>
+                    </span>
+                    <span class="ib-line-traffic">
+                        <span class="bar" :class="barClass(ib)" v-if="ib.total > 0"><i :style="{ width: usagePct(ib) + '%' }"></i></span>
+                        <em>[[ usageNote(ib) ]]</em>
+                    </span>
+                    <span class="ib-line-expiry" :class="expiryClass(ib)">[[ expiryText(ib) ]]</span>
+                    <button class="icon-btn" type="button" title="复制客户端链接"
+                            v-if="linkMap[ib.id]" @click.prevent.stop="copyLink(ib.id)">
+                        <a-icon type="copy"></a-icon>
+                    </button>
+                </a>
+            </template>
+            <div v-else class="empty-state">
+                <a-icon type="deployment-unit"></a-icon>
+                <h4>还没有入站</h4>
+                <p>前往入站列表创建第一个节点。</p>
+            </div>
+        </section>
+
+        <footer class="console-foot">
+            <span>X-UI CONTROL PLANE · 数据每 2 秒刷新</span>
+            <span>[[ dbInbounds.length ]] INBOUNDS · [[ activeCount ]] ACTIVE</span>
+        </footer>
+    </main>
+
+</div>
+
+{{template "js" .}}
+<script>
+    const State = {
+        Running: "running",
+        Stop: "stop",
+        Error: "error",
+    };
+    Object.freeze(State);
+
+    class CurTotal {
+        constructor(current, total) {
+            this.current = current;
+            this.total = total;
+        }
+
+        get percent() {
+            if (this.total === 0) {
+                return 0;
+            }
+            return toFixed(this.current / this.total * 100, 2);
+        }
+    }
+
+    class Status {
+        constructor(data) {
+            this.cpu = new CurTotal(0, 100);
+            this.disk = new CurTotal(0, 0);
+            this.loads = [0, 0, 0];
+            this.mem = new CurTotal(0, 0);
+            this.netIO = {up: 0, down: 0};
+            this.netTraffic = {sent: 0, recv: 0};
+            this.swap = new CurTotal(0, 0);
+            this.tcpCount = 0;
+            this.udpCount = 0;
+            this.uptime = 0;
+            this.xray = {state: State.Stop, errorMsg: "", version: ""};
+
+            if (data == null) {
+                return;
+            }
+            this.cpu = new CurTotal(data.cpu, 100);
+            this.disk = new CurTotal(data.disk.current, data.disk.total);
+            this.loads = data.loads.map(load => toFixed(load, 2));
+            this.mem = new CurTotal(data.mem.current, data.mem.total);
+            this.netIO = data.netIO;
+            this.netTraffic = data.netTraffic;
+            this.swap = new CurTotal(data.swap.current, data.swap.total);
+            this.tcpCount = data.tcpCount;
+            this.udpCount = data.udpCount;
+            this.uptime = data.uptime;
+            this.xray = data.xray;
+        }
+    }
+
+
+    const NET_SAMPLES = 48;
+
+    new Vue({
+        delimiters: ['[[', ']]'],
+        el: '#app',
+        data: {
+            siderDrawer,
+            State,
+            status: new Status(),
+            dbInbounds: [],
+            inboundLinks: [],
+            clock: '--:--:--',
+            netHistory: {
+                up: new Array(NET_SAMPLES).fill(0),
+                down: new Array(NET_SAMPLES).fill(0),
+            },
+        },
+        computed: {
+            kernelStateLabel() {
+                switch (this.status.xray.state) {
+                    case State.Running:
+                        return '运行中';
+                    case State.Stop:
+                        return '已停止';
+                    case State.Error:
+                        return '异常';
+                    default:
+                        return '未知';
+                }
+            },
+            kernelChipClass() {
+                switch (this.status.xray.state) {
+                    case State.Running:
+                        return 'chip--ok';
+                    case State.Stop:
+                        return 'chip--warn';
+                    case State.Error:
+                        return 'chip--crit';
+                    default:
+                        return 'chip--off';
+                }
+            },
+            linkMap() {
+                const map = {};
+                for (const row of this.inboundLinks) {
+                    map[row.id] = row;
+                }
+                return map;
+            },
+            firstErrorLine() {
+                const message = this.status.xray.errorMsg || '';
+                return message.split('\n')[0];
+            },
+            recentInbounds() {
+                return this.dbInbounds.slice(0, 5);
+            },
+            activeCount() {
+                return this.dbInbounds.filter(inbound => inbound.enable).length;
+            },
+            netScale() {
+                const values = this.netHistory.up.concat(this.netHistory.down);
+                return Math.max(1, ...values);
+            },
+            downPoints() {
+                return this.seriesPoints('down');
+            },
+            upPoints() {
+                return this.seriesPoints('up');
+            },
+            downArea() {
+                return this.areaPath(this.downPoints);
+            },
+            upArea() {
+                return this.areaPath(this.upPoints);
+            },
+        },
+        methods: {
+            toneOf(percent) {
+                if (percent >= 90) {
+                    return 'crit';
+                }
+                if (percent >= 75) {
+                    return 'warn';
+                }
+                return 'ok';
+            },
+            fmtPct(percent) {
+                return Number(percent || 0).toFixed(1);
+            },
+            ringDash(percent) {
+                const value = Math.max(0, Math.min(100, Number(percent) || 0));
+                return value + ' 100';
+            },
+            seriesPoints(key) {
+                const values = this.netHistory[key];
+                if (values.length < 2) {
+                    return '0,34 100,34';
+                }
+                const max = this.netScale;
+                const step = 100 / (values.length - 1);
+                return values.map((value, index) => {
+                    const y = 32 - (value / max) * 28;
+                    return (index * step).toFixed(2) + ',' + y.toFixed(2);
+                }).join(' ');
+            },
+            areaPath(points) {
+                return 'M0,34 L' + points.split(' ').join(' L') + ' L100,34 Z';
+            },
+            protoLabel(protocol) {
+                return {
+                    'shadowsocks': 'SS',
+                    'dokodemo-door': 'DOKODEMO',
+                }[protocol] || protocol;
+            },
+            usagePct(ib) {
+                if (!ib.total || ib.total <= 0) {
+                    return 0;
+                }
+                return Math.max(0, Math.min(100, (ib.up + ib.down) / ib.total * 100));
+            },
+            usageNote(ib) {
+                const used = sizeFormat(ib.up + ib.down);
+                if (!ib.total || ib.total <= 0) {
+                    return used + ' · 不限';
+                }
+                return used + ' / ' + sizeFormat(ib.total);
+            },
+            barClass(ib) {
+                if (!ib.total || ib.total <= 0) {
+                    return 'is-unlimited';
+                }
+                const percent = this.usagePct(ib);
+                if (percent >= 95) {
+                    return 'is-crit';
+                }
+                if (percent >= 75) {
+                    return 'is-warn';
+                }
+                return 'is-ok';
+            },
+            expiryClass(ib) {
+                if (!ib.expiryTime || ib.expiryTime <= 0) {
+                    return '';
+                }
+                if (ib.isExpiry) {
+                    return 'is-crit';
+                }
+                const days = moment(ib.expiryTime).diff(moment(), 'days');
+                return days <= 7 ? 'is-warn' : '';
+            },
+            expiryText(ib) {
+                if (!ib.expiryTime || ib.expiryTime <= 0) {
+                    return '∞ 永久';
+                }
+                if (ib.isExpiry) {
+                    return '已过期';
+                }
+                const days = moment(ib.expiryTime).diff(moment(), 'days');
+                return days <= 7 ? '剩 ' + days + ' 天' : moment(ib.expiryTime).format('YYYY-MM-DD');
+            },
+            async getStatus() {
+                const msg = await HttpUtil.post('/server/status');
+                if (msg.success) {
+                    this.setStatus(msg.obj);
+                }
+            },
+            setStatus(data) {
+                this.status = new Status(data);
+                const netIO = data.netIO || {up: 0, down: 0};
+                this.netHistory.up.push(netIO.up);
+                this.netHistory.down.push(netIO.down);
+                this.netHistory.up = this.netHistory.up.slice(-NET_SAMPLES);
+                this.netHistory.down = this.netHistory.down.slice(-NET_SAMPLES);
+            },
+            async getInbounds() {
+                const msg = await HttpUtil.post('/xui/inbound/list');
+                if (msg.success) {
+                    this.dbInbounds = (msg.obj || []).map(inbound => new DBInbound(inbound));
+                }
+            },
+            async getInboundLinks() {
+                const msg = await HttpUtil.post('/xui/inbound/links');
+                if (msg.success && msg.obj != null) {
+                    this.inboundLinks = msg.obj;
+                }
+            },
+            featuresOf(ib) {
+                const row = this.linkMap[ib.id];
+                return row && row.features ? row.features : [];
+            },
+            copyLink(id) {
+                const row = this.linkMap[id];
+                if (!row || !row.link) {
+                    this.$message.error('无法生成该入站的链接');
+                    return;
+                }
+                const done = () => this.$message.success('已复制 ' + row.protocol + ' 链接');
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(row.link).then(done)
+                        .catch(() => this.fallbackCopy(row.link, done));
+                } else {
+                    this.fallbackCopy(row.link, done);
+                }
+            },
+            fallbackCopy(text, done) {
+                const area = document.createElement('textarea');
+                area.value = text;
+                area.style.position = 'fixed';
+                area.style.opacity = '0';
+                document.body.appendChild(area);
+                area.select();
+                try {
+                    document.execCommand('copy');
+                    done();
+                } catch (e) {
+                    this.$message.error('复制失败，请手动复制');
+                }
+                document.body.removeChild(area);
+            },
+            tickClock() {
+                this.clock = new Date().toLocaleTimeString('zh-CN', {hour12: false});
+            },
+        },
+        async mounted() {
+            this.tickClock();
+            this.clockTimer = setInterval(() => this.tickClock(), 1000);
+
+            await Promise.all([this.getInbounds(), this.getInboundLinks()]);
+            this.inboundTimer = setInterval(() => {
+                this.getInbounds();
+                this.getInboundLinks();
+            }, 30000);
+
+            while (true) {
+                try {
+                    await this.getStatus();
+                } catch (e) {
+                    console.error(e);
+                }
+                await PromiseUtil.sleep(2000);
+            }
+        },
+        beforeDestroy() {
+            clearInterval(this.clockTimer);
+            clearInterval(this.inboundTimer);
+        },
+    });
+</script>
+</body>
+</html>

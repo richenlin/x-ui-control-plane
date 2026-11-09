@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+{{template "head" .}}
+<body class="login-body">
+<div id="app" class="login-shell" v-cloak>
+    <section class="login-visual">
+        <div class="login-brand">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 40 40" fill="none">
+                    <rect x="5" y="5" width="30" height="30" rx="7" transform="rotate(45 20 20)"
+                          stroke="currentColor" stroke-width="1.4" opacity=".55"/>
+                    <path d="M14.5 14.5 L25.5 25.5 M25.5 14.5 L14.5 25.5"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </span>
+            <span class="brand-wordblock">
+                <span class="brand-word">X-UI<span class="brand-dot">.</span></span>
+                <span class="brand-sub">Control Plane</span>
+            </span>
+        </div>
+
+        <div class="login-statement">
+            <p class="eyebrow">Access / Secure Entry</p>
+            <h1>所有节点，<br>一处<span class="accent">掌控</span>。</h1>
+            <p class="login-lede">
+                实时资源、内核运行状态与入站流量，集中在一个可操作的界面。
+                用管理员凭据进入控制台，管理每一台服务器的每一条线路。
+            </p>
+            <ul class="login-specs">
+                <li>
+                    <span>01</span>
+                    <div><b>实时监控</b><em>CPU · MEMORY · NETWORK I/O</em></div>
+                </li>
+                <li>
+                    <span>02</span>
+                    <div><b>多协议入站</b><em>VMESS · VLESS · TROJAN · SHADOWSOCKS</em></div>
+                </li>
+                <li>
+                    <span>03</span>
+                    <div><b>自动提醒</b><em>TELEGRAM · EXPIRY POLICY</em></div>
+                </li>
+            </ul>
+        </div>
+
+        <div class="login-visual-foot">
+            <span class="pulse"></span>
+            <span>SESSION READY</span>
+            <span class="sep">/</span>
+            <span>TLS RECOMMENDED</span>
+        </div>
+    </section>
+
+    <section class="login-form-side">
+        <div class="login-card">
+            <p class="eyebrow">Sign in</p>
+            <h2>登录</h2>
+            <p class="login-hint">使用面板管理员账号进入控制台。</p>
+
+            <form @submit.prevent="login" novalidate>
+                <label class="field">
+                    <span>Username</span>
+                    <input ref="username" v-model.trim="user.username"
+                           placeholder='{{ i18n "username" }}'
+                           name="username" autocomplete="username" autocapitalize="off" spellcheck="false">
+                </label>
+
+                <label class="field">
+                    <span>Password</span>
+                    <div class="pw">
+                        <input v-model.trim="user.password" :type="showPassword ? 'text' : 'password'"
+                               placeholder='{{ i18n "password" }}'
+                               name="password" autocomplete="current-password">
+                        <button class="pw-toggle" type="button" @click="showPassword = !showPassword"
+                                :aria-label="showPassword ? '隐藏密码' : '显示密码'">
+                            [[ showPassword ? 'HIDE' : 'SHOW' ]]
+                        </button>
+                    </div>
+                </label>
+
+                <div class="login-error" v-if="error">
+                    <a-icon type="warning"></a-icon>
+                    <span>[[ error ]]</span>
+                </div>
+
+                <button class="btn-login" type="submit" :disabled="loading">
+                    <span>[[ loading ? '正在验证…' : '进入控制台' ]]</span>
+                    <a-icon :type="loading ? 'loading' : 'arrow-right'"></a-icon>
+                </button>
+            </form>
+
+            <div class="login-foot">
+                <span>X-UI · ADMIN ONLY</span>
+                <span>ENCRYPTED</span>
+            </div>
+        </div>
+    </section>
+</div>
+
+{{template "js" .}}
+<script>
+    const app = new Vue({
+        delimiters: ['[[', ']]'],
+        el: '#app',
+        data: {
+            loading: false,
+            showPassword: false,
+            error: '',
+            user: new User(),
+        },
+        methods: {
+            async login() {
+                if (!this.user.username || !this.user.password) {
+                    this.error = '请输入用户名和密码。';
+                    return;
+                }
+                this.error = '';
+                this.loading = true;
+                try {
+                    const msg = await HttpUtil.post('/login', this.user);
+                    if (msg.success) {
+                        location.href = basePath + 'xui/';
+                        return;
+                    }
+                    this.error = msg.msg || '登录失败，请检查账号与密码。';
+                } catch (e) {
+                    this.error = '无法连接面板服务，请稍后再试。';
+                } finally {
+                    this.loading = false;
+                }
+            },
+        },
+        mounted() {
+            this.$nextTick(() => this.$refs.username && this.$refs.username.focus());
+        },
+    });
+</script>
+</body>
+</html>

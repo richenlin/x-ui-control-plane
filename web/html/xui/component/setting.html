@@ -1,0 +1,29 @@
+{{define "component/settingListItem"}}
+<div class="setting-row">
+    <div class="setting-copy">
+        <h4>[[ title ]]</h4>
+        <p v-if="desc">[[ desc ]]</p>
+    </div>
+    <div class="setting-control" :class="{'is-textarea': type === 'textarea', 'is-switch': type === 'switch'}">
+        <a-input v-if="type === 'text'" :value="value"
+                 @input="$emit('input', $event.target.value)"></a-input>
+        <a-input v-else-if="type === 'number'" type="number" :value="value"
+                 @input="$emit('input', $event.target.value)"></a-input>
+        <a-textarea v-else-if="type === 'textarea'" :value="value"
+                    @input="$emit('input', $event.target.value)"
+                    :auto-size="{ minRows: 14, maxRows: 26 }"></a-textarea>
+        <a-switch v-else-if="type === 'switch'" :checked="value"
+                  @change="checked => $emit('input', checked)"></a-switch>
+    </div>
+</div>
+{{end}}
+
+{{define "component/setting"}}
+<script>
+    Vue.component('setting-list-item', {
+        props: ["type", "title", "desc", "value"],
+        delimiters: ['[[', ']]'],
+        template: `{{template "component/settingListItem"}}`,
+    });
+</script>
+{{end}}

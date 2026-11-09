@@ -1,0 +1,16 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t x-ui:ci .
+      - name: Show core version
+        run: docker run --rm x-ui:ci ./bin/xray-linux-amd64 -version

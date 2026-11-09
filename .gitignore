@@ -1,0 +1,25 @@
+# build artifacts
+bin/
+*.tar.gz
+*.tgz
+*.zip
+!vendor/xray/Xray-linux-64.zip
+x-ui
+main
+x-ui-image.tar
+
+# runtime data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+
+# tooling
+.idea/
+.vscode/
+.DS_Store
+node_modules/
+*.log
