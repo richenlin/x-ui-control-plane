@@ -32,7 +32,7 @@ REALITY_PORT="${REALITY_PORT:-3389}"
 
 DOMAIN=""; EMAIL="${ACME_EMAIL:-}"; ENDPOINT=""
 CERT=""; KEY=""; IMAGE_TAR=""; CADDY_TAR=""
-REALITY_DEST=""; NO_CADDY=0; NO_TLS=0; NO_PQ=0; SKIP_START=0
+REALITY_DEST=""; NO_CADDY=0; NO_TLS=0; NO_PQ=0; NO_HY2=0; SKIP_START=0
 
 log()  { printf '\033[1;32m[+]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
@@ -50,7 +50,8 @@ usage() { sed -n '2,18p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^$/{x;/./d;x}' ; ca
   --panel-port/--vision-port/--hy2-port/--reality-port
   --reality-dest <host:port>   REALITY 回落目标（默认 127.0.0.1:443，即 Caddy 站点）
   --no-caddy             不部署 Caddy（80/443 已被占用时）
-  --no-tls               不建 TLS 入站（只保留 REALITY）
+  --no-tls               不建 TLS 入站（只保留 REALITY）；此时 --domain 仅作 REALITY SNI
+  --no-hy2               不建 Hysteria2 入站（无证书 / 纯 REALITY 场景）
   --no-pq                关闭 VLESS Encryption（客户端 < 26.3 时使用）
   --skip-start           只准备数据，不启动容器
 环境变量: XUI_IMAGE XUI_DIR XUI_DATA_DIR XUI_CONTAINER
@@ -74,6 +75,7 @@ while [[ $# -gt 0 ]]; do
     --reality-dest) REALITY_DEST="${2:?}"; shift 2;;
     --no-caddy) NO_CADDY=1; shift;;
     --no-tls) NO_TLS=1; shift;;
+    --no-hy2) NO_HY2=1; shift;;
     --no-pq) NO_PQ=1; shift;;
     --skip-start) SKIP_START=1; shift;;
     -h|--help) usage;;
@@ -234,10 +236,14 @@ fi
 
 # ---------- 5. 入站 ----------
 log "生成入站（Vision / REALITY+VLESS Encryption / Hysteria2）"
+# DOMAIN/REALITY_SNI are always passed: in --no-tls mode they only feed REALITY serverNames
+# (provision.py gates the TLS inbound on the cert files actually existing).
+H2=$((1-NO_HY2))
 ENVS=(-e "VISION_PORT=$VISION_PORT" -e "HY2_PORT=$HY2_PORT" -e "REALITY_PORT=$REALITY_PORT"
       -e "REALITY_DEST=$REALITY_DEST" -e "ENDPOINT=$ENDPOINT" -e "INSECURE=$INSECURE"
-      -e "PQ=$((1-NO_PQ))")
-[[ $NO_TLS -eq 0 ]] && ENVS+=(-e "DOMAIN=$DOMAIN" -e "CERT_FILE=/certs/fullchain.pem" -e "KEY_FILE=/certs/privkey.pem")
+      -e "PQ=$((1-NO_PQ))" -e "HY2_ENABLE=$H2"
+      -e "DOMAIN=$DOMAIN" -e "REALITY_SNI=${REALITY_SNI:-$DOMAIN}")
+[[ $NO_TLS -eq 0 ]] && ENVS+=(-e "CERT_FILE=/certs/fullchain.pem" -e "KEY_FILE=/certs/privkey.pem")
 SUMMARY="$(docker run --rm -v "$DATA_DIR:/etc/x-ui" -v "$DATA_DIR/certs:/certs:ro" "${ENVS[@]}" "$IMAGE" ./provision.py)"
 
 # ---------- 6. 启动 & 证书续期 ----------
@@ -284,7 +290,7 @@ cat <<EOF
 
 提示:
   * 安全组需放行: TCP $PANEL_PORT / TCP $VISION_PORT / UDP $HY2_PORT / TCP $REALITY_PORT
-  * Hysteria2 走 UDP $HY2_PORT，很多云厂商默认只放行 TCP，请确认 UDP 规则
+  * Hysteria2 走 UDP $HY2_PORT，很多云厂商默认只放行 TCP，请确认 UDP 规则（本机需有 TLS 证书）
   * REALITY 回落目标 $REALITY_DEST 应是本机真实 TLS 站点（Caddy 站点即满足）
   * 面板改密: docker exec $CONTAINER ./x-ui setting -username admin -password '<新密码>'
   * REALITY 入站启用了 VLESS Encryption（ML-KEM-768 后量子），客户端需 Xray ≥ 26.3；旧客户端可用 --no-pq 关闭

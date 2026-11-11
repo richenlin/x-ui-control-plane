@@ -125,6 +125,9 @@ def main():
     tls = bool(domain) and os.path.exists(cert) and os.path.exists(key)
     insecure = env("INSECURE", "0") == "1" or not tls
     pq = env("PQ", "1") == "1"
+    # Hysteria2 terminates TLS itself and therefore needs a certificate; on an
+    # IP-only / REALITY-only host set HY2_ENABLE=0 to skip the inbound entirely.
+    hy2_enable = env("HY2_ENABLE", "1") == "1" and tls
 
     con = sqlite3.connect(DB)
     allow_shared_port(con)
@@ -185,21 +188,21 @@ def main():
         summary["vlessenc"] = {"decryption": dec, "encryption": er}
 
     # ---------- 3. Hysteria 2 ----------
-    auth = env("HY2_AUTH", gen_secret())
-    tls_cfg = {"serverName": domain, "alpn": ["h3"]}
-    if tls:
-        tls_cfg["certificates"] = [{"certificateFile": cert, "keyFile": key}]
-    upsert(con, "inbound-hysteria2", hy2_port, "hysteria2", f"hysteria2-{hy2_port}udp",
-           {"version": 2, "clients": [{"auth": auth, "email": "h2"}]},
-           {"network": "hysteria", "security": "tls", "tlsSettings": tls_cfg,
-            "hysteriaSettings": {"version": 2, "auth": auth, "udpIdleTimeout": 60,
-                                 "masquerade": {"type": "string", "statusCode": 200,
-                                                "content": "<!doctype html><html><body>It works!</body></html>"}}},
-           SNIFFING)
-    summary["inbounds"].append({
-        "tag": "inbound-hysteria2", "protocol": "hysteria2", "port": hy2_port, "auth": auth,
-        "link": (f"hysteria2://{auth}@{endpoint}:{hy2_port}"
-                 f"?sni={domain or sni0}&insecure={'1' if insecure else '0'}#x-ui-hysteria2")})
+    if hy2_enable:
+        auth = env("HY2_AUTH", gen_secret())
+        tls_cfg = {"serverName": domain, "alpn": ["h3"],
+                   "certificates": [{"certificateFile": cert, "keyFile": key}]}
+        upsert(con, "inbound-hysteria2", hy2_port, "hysteria2", f"hysteria2-{hy2_port}udp",
+               {"version": 2, "clients": [{"auth": auth, "email": "h2"}]},
+               {"network": "hysteria", "security": "tls", "tlsSettings": tls_cfg,
+                "hysteriaSettings": {"version": 2, "auth": auth, "udpIdleTimeout": 60,
+                                     "masquerade": {"type": "string", "statusCode": 200,
+                                                    "content": "<!doctype html><html><body>It works!</body></html>"}}},
+               SNIFFING)
+        summary["inbounds"].append({
+            "tag": "inbound-hysteria2", "protocol": "hysteria2", "port": hy2_port, "auth": auth,
+            "link": (f"hysteria2://{auth}@{endpoint}:{hy2_port}"
+                     f"?sni={domain or sni0}&insecure={'1' if insecure else '0'}#x-ui-hysteria2")})
 
     con.commit()
 

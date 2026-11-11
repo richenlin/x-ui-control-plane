@@ -23,3 +23,7 @@ x-ui-image.tar
 .DS_Store
 node_modules/
 *.log
+
+# local deployment artifacts (contains credentials)
+.deploy/
+__pycache__/
