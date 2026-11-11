@@ -186,6 +186,13 @@ def main():
                  + ("-pq" if pq else ""))})
     if pq:
         summary["vlessenc"] = {"decryption": dec, "encryption": er}
+        # The panel only stores the server side string in the inbound settings; the
+        # client side string lives in the settings table so that "copy link" can
+        # emit encryption=... (see web/service/inbound_link.go: vlessEncryptionFor).
+        # Without this row the panel answers "启用了 VLESS Encryption，但面板缺少客户端
+        # encryption 串" for every link of this inbound.
+        con.execute("delete from settings where key = 'vlessEncryption'")
+        con.execute("insert into settings (key, value) values ('vlessEncryption', ?)", (er,))
 
     # ---------- 3. Hysteria 2 ----------
     if hy2_enable:
